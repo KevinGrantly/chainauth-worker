@@ -32,8 +32,8 @@ async function clickOptionalLoginButton(page, payload, timeout) {
 }
 
 async function waitForLoginForm(page, payload, timeout) {
-  const usernameSelector = payload.username_selector || 'input[type="email"], input[name="username"], input[name="Username"], input[id*="user" i]';
-  const passwordSelector = payload.password_selector || 'input[type="password"]';
+  const usernameSelector = payload.username_selector || 'input#Name[name="Name"], input[name="Name"], input[placeholder="Gebruikersnaam"]';
+  const passwordSelector = payload.password_selector || 'input#Password[name="Password"], input[name="Password"], input[placeholder="Wachtwoord"]';
 
   await page.locator(usernameSelector).first().waitFor({ state: 'visible', timeout });
   await page.locator(passwordSelector).first().waitFor({ state: 'visible', timeout });
@@ -44,7 +44,7 @@ async function waitForLoginForm(page, payload, timeout) {
 export async function runZloginLoginTest(payload) {
   const timeout = coerceTimeout(payload);
   const startUrl = payload.start_url || payload.login_url || 'https://zlogin.nl/';
-  const submitSelector = payload.submit_selector || 'button[type="submit"], input[type="submit"]';
+  const submitSelector = payload.submit_selector || 'button.main-btn[name="login"], button[type="submit"], input[type="submit"]';
 
   const browser = await chromium.launch({
     headless: true,
