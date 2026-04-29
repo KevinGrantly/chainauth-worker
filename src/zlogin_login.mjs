@@ -9,6 +9,7 @@ function coerceTimeout(payload) {
 async function pollForMfaCode(payload, timeout) {
   const pollUrl = payload.mfa_code_url;
   if (!pollUrl) {
+    console.log('MFA polling disabled: missing mfa_code_url');
     return null;
   }
 
@@ -30,8 +31,10 @@ async function pollForMfaCode(payload, timeout) {
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && data.success && data.code) {
+        console.log('MFA code received from GRANTLY, continuing same browser session.');
         return String(data.code).trim();
       }
+      console.log('MFA code pending...');
     } else {
       const text = await res.text().catch(() => '');
       console.log(`MFA poll status: ${res.status} ${text}`);
