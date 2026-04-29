@@ -2,6 +2,26 @@
 
 Playwright/Chromium worker voor GRANTLY ketenmachtiging headless login-tests.
 
+
+## Geen lokale worker meer nodig
+
+Deze worker is bedoeld om via GitHub automatisch naar Cloud Run of Render te deployen. GRANTLY hoeft dan alleen de publieke worker-URL te gebruiken; je hoeft lokaal geen `npm run start` meer te draaien.
+
+### GitHub → Google Cloud Run
+
+1. Zet deze map `chainauth-worker` in een GitHub repository.
+2. Voeg GitHub secrets toe:
+   - `GCP_SERVICE_ACCOUNT_JSON`
+   - `WORKER_TOKEN`
+3. Push naar `main`.
+4. GitHub Actions deployt automatisch naar Cloud Run.
+5. Kopieer de Cloud Run URL naar GRANTLY → ChainAuth → Provider settings → Worker URL.
+
+### Render alternatief
+
+De meegeleverde `render.yaml` kan direct als Render Blueprint gebruikt worden. Render start de Docker worker automatisch en geeft een publieke URL terug.
+
+
 ## Lokaal draaien
 
 ### Snelste manier

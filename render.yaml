@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: chainauth-worker
+    runtime: docker
+    plan: standard
+    healthCheckPath: /health
+    envVars:
+      - key: WORKER_TOKEN
+        generateValue: true
+      - key: PORT
+        value: 8080
