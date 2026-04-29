@@ -1,0 +1,85 @@
+name: ChainAuth Headless Login
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_id:
+        description: "ChainAuth provider ID"
+        required: true
+      callback_url:
+        description: "GRANTLY callback URL"
+        required: true
+      callback_token:
+        description: "Callback bearer token"
+        required: true
+      start_url:
+        description: "Start URL"
+        required: false
+      login_url:
+        description: "Login URL"
+        required: false
+      username:
+        description: "Username"
+        required: true
+      password:
+        description: "Password"
+        required: true
+      login_click_selector:
+        description: "Optional login button selector"
+        required: false
+      username_selector:
+        description: "Username input selector"
+        required: false
+      password_selector:
+        description: "Password input selector"
+        required: false
+      submit_selector:
+        description: "Submit selector"
+        required: false
+      success_url_contains:
+        description: "Success URL fragment"
+        required: false
+      timeout_ms:
+        description: "Timeout in ms"
+        required: false
+      user_agent:
+        description: "User agent"
+        required: false
+
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run ChainAuth login
+        env:
+          PROVIDER_ID: ${{ github.event.inputs.provider_id }}
+          CALLBACK_URL: ${{ github.event.inputs.callback_url }}
+          CALLBACK_TOKEN: ${{ github.event.inputs.callback_token }}
+          START_URL: ${{ github.event.inputs.start_url }}
+          LOGIN_URL: ${{ github.event.inputs.login_url }}
+          USERNAME: ${{ github.event.inputs.username }}
+          PASSWORD: ${{ github.event.inputs.password }}
+          LOGIN_CLICK_SELECTOR: ${{ github.event.inputs.login_click_selector }}
+          USERNAME_SELECTOR: ${{ github.event.inputs.username_selector }}
+          PASSWORD_SELECTOR: ${{ github.event.inputs.password_selector }}
+          SUBMIT_SELECTOR: ${{ github.event.inputs.submit_selector }}
+          SUCCESS_URL_CONTAINS: ${{ github.event.inputs.success_url_contains }}
+          TIMEOUT_MS: ${{ github.event.inputs.timeout_ms }}
+          USER_AGENT: ${{ github.event.inputs.user_agent }}
+        run: node .github/scripts/run-dispatch.mjs
