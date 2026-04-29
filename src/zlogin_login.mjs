@@ -1,48 +1,90 @@
 import { chromium } from 'playwright';
 
 function coerceTimeout(payload) {
-  const timeout = Number(payload.timeout_ms || 30000);
-  return Math.max(5000, Math.min(120000, Number.isFinite(timeout) ? timeout : 30000));
+  const timeout = Number(payload.timeout_ms || 45000);
+  return Math.max(5000, Math.min(120000, Number.isFinite(timeout) ? timeout : 45000));
 }
 
-async function clickOptionalLoginButton(page, payload, timeout) {
-  if (payload.login_click_selector) {
-    await Promise.allSettled([
-      page.waitForLoadState('domcontentloaded', { timeout }),
-      page.locator(payload.login_click_selector).first().click({ timeout }),
-    ]);
-
+async function navigateToLoginScreen(page, payload, timeout) {
+  if (payload.login_url && payload.login_url !== payload.start_url) {
+    await page.goto(payload.login_url, { waitUntil: 'domcontentloaded', timeout });
     await page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
-    await page.waitForTimeout(1000);
+    console.log('URL AFTER LOGIN_URL GOTO:', page.url());
+    return;
+  }
+
+  if (payload.login_click_selector) {
+    const link = page.locator(payload.login_click_selector).first();
+    const href = await link.getAttribute('href').catch(() => null);
+
+    if (href) {
+      await page.goto(new URL(href, page.url()).toString(), { waitUntil: 'domcontentloaded', timeout });
+    } else {
+      await link.click({ timeout });
+      await page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
+    }
 
     console.log('URL AFTER LOGIN CLICK:', page.url());
+    return;
+  }
 
-    return true;
+  // Z-login homepage: eerst naar "Mijn Z login" / UsernamePassword scherm.
+  const directLoginLink = page
+    .locator('a[href*="/Login/nl/Login/UsernamePassword"], a[href*="login.zlogin.nl"][href*="UsernamePassword"]')
+    .first();
+
+  if (await directLoginLink.count()) {
+    const href = await directLoginLink.getAttribute('href').catch(() => null);
+    if (href) {
+      await page.goto(new URL(href, page.url()).toString(), { waitUntil: 'domcontentloaded', timeout });
+      console.log('URL AFTER ZLOGIN DIRECT LOGIN LINK:', page.url());
+      return;
+    }
   }
 
   const candidates = [
-    page.getByRole('link', { name: /inloggen|login|sign in/i }),
+    page.getByRole('link', { name: /mijn z login|inloggen|login|sign in/i }),
     page.getByRole('button', { name: /inloggen|login|sign in/i }),
-    page.locator('a[href*="login" i], button:has-text("Login"), button:has-text("Inloggen")').first(),
+    page.locator('a[href*="UsernamePassword"], a[href*="login" i], button:has-text("Login"), button:has-text("Inloggen")').first(),
   ];
 
   for (const locator of candidates) {
     try {
-      if (await locator.first().isVisible({ timeout: 2500 })) {
-        await locator.first().click({ timeout: 5000 });
-        return true;
+      const item = locator.first();
+      if (await item.isVisible({ timeout: 2500 })) {
+        const href = await item.getAttribute('href').catch(() => null);
+        if (href) {
+          await page.goto(new URL(href, page.url()).toString(), { waitUntil: 'domcontentloaded', timeout });
+        } else {
+          await item.click({ timeout: 5000 });
+          await page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
+        }
+        console.log('URL AFTER AUTO LOGIN NAV:', page.url());
+        return;
       }
     } catch (_) {
       // Candidate not present; continue.
     }
   }
-
-  return false;
 }
 
 async function waitForLoginForm(page, payload, timeout) {
-  const usernameSelector = payload.username_selector || 'input#Name[name="Name"], input[name="Name"], input[placeholder="Gebruikersnaam"]';
-  const passwordSelector = payload.password_selector || 'input#Password[name="Password"], input[name="Password"], input[placeholder="Wachtwoord"]';
+  const usernameSelector = payload.username_selector || [
+    'input#Name[name="Name"]',
+    'input[name="Name"]',
+    'input[placeholder="Gebruikersnaam"]',
+    'input[autocomplete="username"]',
+    'input[type="text"]',
+    'input[type="email"]',
+  ].join(', ');
+
+  const passwordSelector = payload.password_selector || [
+    'input#Password[name="Password"]',
+    'input[name="Password"]',
+    'input[placeholder="Wachtwoord"]',
+    'input[autocomplete="current-password"]',
+    'input[type="password"]',
+  ].join(', ');
 
   await page.locator(usernameSelector).first().waitFor({ state: 'visible', timeout });
   await page.locator(passwordSelector).first().waitFor({ state: 'visible', timeout });
@@ -53,7 +95,7 @@ async function waitForLoginForm(page, payload, timeout) {
 export async function runZloginLoginTest(payload) {
   const timeout = coerceTimeout(payload);
   const startUrl = payload.start_url || payload.login_url || 'https://zlogin.nl/';
-  const submitSelector = payload.submit_selector || 'button.main-btn[name="login"], button[type="submit"], input[type="submit"]';
+  const submitSelector = payload.submit_selector || 'button.main-btn[name="login"], button[name="login"], button[type="submit"], input[type="submit"]';
 
   const browser = await chromium.launch({
     headless: true,
@@ -70,9 +112,9 @@ export async function runZloginLoginTest(payload) {
 
   try {
     await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout });
+    console.log('URL AFTER START GOTO:', page.url());
 
-    // Optional: when start_url is a marketing page, click through to actual login.
-    await clickOptionalLoginButton(page, payload, timeout).catch(() => false);
+    await navigateToLoginScreen(page, payload, timeout);
 
     const { usernameSelector, passwordSelector } = await waitForLoginForm(page, payload, timeout);
 
@@ -90,19 +132,6 @@ export async function runZloginLoginTest(payload) {
     const hasPasswordField = await page.locator(passwordSelector).first().isVisible({ timeout: 2500 }).catch(() => false);
 
     if (currentUrl.includes('/Login/nl/Login/SMS')) {
-      if (payload.keep_browser_open_on_mfa) {
-        return {
-          success: false,
-          mfa_required: true,
-          message: 'SMS-code vereist.',
-          current_url: currentUrl,
-          stopped_after: 'sms_mfa',
-          browser,
-          context,
-          page,
-        };
-      }
-
       return {
         success: false,
         mfa_required: true,
@@ -132,10 +161,8 @@ export async function runZloginLoginTest(payload) {
       stopped_after: 'login_attempt',
     };
   } finally {
-    if (!payload.keep_browser_open_on_mfa) {
-      await context.close();
-      await browser.close();
-    }
+    await context.close();
+    await browser.close();
   }
 }
 
